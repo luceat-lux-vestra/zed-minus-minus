@@ -2,9 +2,11 @@
 resolver = "2"
 members = [
     "crates/activity_indicator",
+    "crates/acp",
     "crates/agent_ui",
     "crates/agent",
     "crates/agent_settings",
+    "crates/agent_servers",
     "crates/anthropic",
     "crates/askpass",
     "crates/assets",
@@ -26,8 +28,6 @@ members = [
     "crates/cli",
     "crates/client",
     "crates/clock",
-    "crates/collab",
-    "crates/collab_ui",
     "crates/collections",
     "crates/command_palette",
     "crates/command_palette_hooks",
@@ -45,6 +45,7 @@ members = [
     "crates/diagnostics",
     "crates/docs_preprocessor",
     "crates/editor",
+    "crates/explorer_command_injector",
     "crates/eval",
     "crates/extension",
     "crates/extension_api",
@@ -189,7 +190,6 @@ members = [
     "extensions/emmet",
     "extensions/glsl",
     "extensions/html",
-    "extensions/perplexity",
     "extensions/proto",
     "extensions/ruff",
     "extensions/slash-commands-example",
@@ -216,10 +216,12 @@ edition = "2024"
 # Workspace member crates
 #
 
-activity_indicator = { path = "crates/activity_indicator" }
+acp = { path = "crates/acp" }
 agent = { path = "crates/agent" }
+activity_indicator = { path = "crates/activity_indicator" }
 agent_ui = { path = "crates/agent_ui" }
 agent_settings = { path = "crates/agent_settings" }
+agent_servers = { path = "crates/agent_servers" }
 ai = { path = "crates/ai" }
 anthropic = { path = "crates/anthropic" }
 askpass = { path = "crates/askpass" }
@@ -242,8 +244,6 @@ channel = { path = "crates/channel" }
 cli = { path = "crates/cli" }
 client = { path = "crates/client" }
 clock = { path = "crates/clock" }
-collab = { path = "crates/collab" }
-collab_ui = { path = "crates/collab_ui" }
 collections = { path = "crates/collections" }
 command_palette = { path = "crates/command_palette" }
 command_palette_hooks = { path = "crates/command_palette_hooks" }
@@ -400,6 +400,7 @@ zlog_settings = { path = "crates/zlog_settings" }
 # External crates
 #
 
+agentic-coding-protocol = "0.0.6"
 aho-corasick = "1.1"
 alacritty_terminal = { git = "https://github.com/zed-industries/alacritty.git", branch = "add-hush-login-flag" }
 any_vec = "0.14"
@@ -626,6 +627,8 @@ wasmtime = { version = "29", default-features = false, features = [
 ] }
 wasmtime-wasi = "29"
 which = "6.0.0"
+windows-core = "0.61"
+wit-component = "0.221"
 workspace-hack = "0.1.0"
 zed_llm_client = "= 0.8.6"
 zstd = "0.11"
@@ -699,7 +702,7 @@ workspace-hack = { path = "tooling/workspace-hack" }
 
 [profile.dev]
 split-debuginfo = "unpacked"
-codegen-units = 16
+codegen-units = 256
 
 [profile.dev.package]
 taffy = { opt-level = 3 }
@@ -752,18 +755,19 @@ ui_input = { codegen-units = 1 }
 zed_actions = { codegen-units = 1 }
 
 [profile.release]
-debug = "limited"
-lto = "thin"
-codegen-units = 1
+debug = "none"
+lto = "off"
+incremental = true
+codegen-units = 256
 
 [profile.release.package]
-zed = { codegen-units = 16 }
+zed = { codegen-units = 256 }
 
 [profile.release-fast]
 inherits = "release"
 debug = "full"
 lto = false
-codegen-units = 16
+codegen-units = 256
 
 [workspace.lints.rust]
 unexpected_cfgs = { level = "allow" }

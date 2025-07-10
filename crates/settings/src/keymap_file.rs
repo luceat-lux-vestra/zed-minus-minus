@@ -137,10 +137,10 @@ pub enum KeymapFileLoadResult {
     Success {
         key_bindings: Vec<KeyBinding>,
     },
-    SomeFailedToLoad {
-        key_bindings: Vec<KeyBinding>,
-        error_message: MarkdownString,
-    },
+    // SomeFailedToLoad {
+    //     key_bindings: Vec<KeyBinding>,
+    //     error_message: MarkdownString,
+    // },
     JsonParseFailure {
         error: anyhow::Error,
     },
@@ -166,9 +166,9 @@ impl KeymapFile {
                 }),
                 None => Ok(key_bindings),
             },
-            KeymapFileLoadResult::SomeFailedToLoad { error_message, .. } => {
-                anyhow::bail!("Error loading built-in keymap \"{asset_path}\": {error_message}",)
-            }
+            // KeymapFileLoadResult::SomeFailedToLoad { error_message, .. } => {
+            //     anyhow::bail!("Error loading built-in keymap \"{asset_path}\": {error_message}",)
+            // }
             KeymapFileLoadResult::JsonParseFailure { error } => {
                 anyhow::bail!("JSON parse error in built-in keymap \"{asset_path}\": {error}")
             }
@@ -181,15 +181,7 @@ impl KeymapFile {
         cx: &App,
     ) -> anyhow::Result<Vec<KeyBinding>> {
         match Self::load(asset_str::<SettingsAssets>(asset_path).as_ref(), cx) {
-            KeymapFileLoadResult::SomeFailedToLoad {
-                key_bindings,
-                error_message,
-                ..
-            } if key_bindings.is_empty() => {
-                anyhow::bail!("Error loading built-in keymap \"{asset_path}\": {error_message}",)
-            }
-            KeymapFileLoadResult::Success { key_bindings, .. }
-            | KeymapFileLoadResult::SomeFailedToLoad { key_bindings, .. } => Ok(key_bindings),
+            KeymapFileLoadResult::Success { key_bindings, .. } => Ok(key_bindings),
             KeymapFileLoadResult::JsonParseFailure { error } => {
                 anyhow::bail!("JSON parse error in built-in keymap \"{asset_path}\": {error}")
             }
@@ -200,9 +192,6 @@ impl KeymapFile {
     pub fn load_panic_on_failure(content: &str, cx: &App) -> Vec<KeyBinding> {
         match Self::load(content, cx) {
             KeymapFileLoadResult::Success { key_bindings, .. } => key_bindings,
-            KeymapFileLoadResult::SomeFailedToLoad { error_message, .. } => {
-                panic!("{error_message}");
-            }
             KeymapFileLoadResult::JsonParseFailure { error } => {
                 panic!("JSON parse error: {error}");
             }
@@ -308,27 +297,17 @@ impl KeymapFile {
             }
         }
 
-        if errors.is_empty() {
-            KeymapFileLoadResult::Success { key_bindings }
-        } else {
-            let mut error_message = "Errors in user keymap file.\n".to_owned();
-            for (context, section_errors) in errors {
-                if context.is_empty() {
-                    let _ = write!(error_message, "\n\nIn section without context predicate:");
-                } else {
-                    let _ = write!(
-                        error_message,
-                        "\n\nIn section with {}:",
-                        MarkdownInlineCode(&format!("context = \"{}\"", context))
-                    );
-                }
-                let _ = write!(error_message, "{section_errors}");
-            }
-            KeymapFileLoadResult::SomeFailedToLoad {
-                key_bindings,
-                error_message: MarkdownString(error_message),
-            }
-        }
+        // log any errors that occurred during loading
+        log::warn!(
+            "Errors loading keymap file: {}",
+            errors
+                .iter()
+                .map(|(context, error)| format!("In section `{context}`: {error}"))
+                .collect::<Vec<_>>()
+                .join("\n")
+        );
+
+        KeymapFileLoadResult::Success { key_bindings }
     }
 
     fn load_keybinding(
@@ -426,12 +405,18 @@ impl KeymapFile {
         }
     }
 
+    /// Creates a JSON schema generator, suitable for generating json schemas
+    /// for actions
+    pub fn action_schema_generator() -> schemars::SchemaGenerator {
+        schemars::generate::SchemaSettings::draft2019_09().into_generator()
+    }
+
     pub fn generate_json_schema_for_registered_actions(cx: &mut App) -> Value {
         // instead of using DefaultDenyUnknownFields, actions typically use
         // `#[serde(deny_unknown_fields)]` so that these cases are reported as parse failures. This
         // is because the rest of the keymap will still load in these cases, whereas other settings
         // files would not.
-        let mut generator = schemars::generate::SchemaSettings::draft2019_09().into_generator();
+        let mut generator = Self::action_schema_generator();
 
         let action_schemas = cx.action_schemas(&mut generator);
         let deprecations = cx.deprecated_actions_to_preferred_actions();

@@ -5,7 +5,6 @@ use anyhow::{Context as _, Result};
 use clap::{Parser, command};
 use cli::FORCE_CLI_MODE_ENV_VAR_NAME;
 use client::{Client, ProxySettings, UserStore, parse_zed_link};
-use collab_ui::channel_view::ChannelView;
 use collections::HashMap;
 use db::kvp::{GLOBAL_KEY_VALUE_STORE, KEY_VALUE_STORE};
 use editor::Editor;
@@ -41,7 +40,7 @@ use theme::{
     ActiveTheme, IconThemeNotFoundError, SystemAppearance, ThemeNotFoundError, ThemeRegistry,
     ThemeSettings,
 };
-use util::{ConnectionResult, ResultExt, TryFutureExt, maybe};
+use util::{ConnectionResult, ResultExt};
 use uuid::Uuid;
 use welcome::{FIRST_OPEN, show_welcome_view};
 use workspace::{
@@ -520,6 +519,7 @@ pub fn main() {
         supermaven::init(app_state.client.clone(), cx);
         language_model::init(app_state.client.clone(), cx);
         language_models::init(app_state.user_store.clone(), app_state.client.clone(), cx);
+        agent_servers::init(cx);
         web_search::init(cx);
         web_search_providers::init(app_state.client.clone(), cx);
         snippet_provider::init(cx);
@@ -580,7 +580,6 @@ pub fn main() {
         language_tools::init(cx);
         call::init(app_state.client.clone(), app_state.user_store.clone(), cx);
         notifications::init(app_state.client.clone(), app_state.user_store.clone(), cx);
-        collab_ui::init(&app_state, cx);
         git_ui::init(cx);
         jj_ui::init(cx);
         feedback::init(cx);
@@ -741,10 +740,10 @@ fn handle_open_request(request: OpenRequest, app_state: Arc<AppState>, cx: &mut 
         return;
     }
 
-    let mut task = None;
+    let mut _task = None;
     if !request.open_paths.is_empty() || !request.diff_paths.is_empty() {
         let app_state = app_state.clone();
-        task = Some(cx.spawn(async move |mut cx| {
+        _task = Some(cx.spawn(async move |mut cx| {
             let paths_with_position =
                 derive_paths_with_position(app_state.fs.as_ref(), request.open_paths).await;
             let (_window, results) = open_paths_with_positions(
@@ -762,72 +761,6 @@ fn handle_open_request(request: OpenRequest, app_state: Arc<AppState>, cx: &mut 
             }
             anyhow::Ok(())
         }));
-    }
-
-    if !request.open_channel_notes.is_empty() || request.join_channel.is_some() {
-        cx.spawn(async move |mut cx| {
-            let result = maybe!(async {
-                if let Some(task) = task {
-                    task.await?;
-                }
-                let client = app_state.client.clone();
-                // we continue even if authentication fails as join_channel/ open channel notes will
-                // show a visible error message.
-                match authenticate(client, &cx).await {
-                    ConnectionResult::Timeout => {
-                        log::error!("Timeout during open request handling")
-                    }
-                    ConnectionResult::ConnectionReset => {
-                        log::error!("Connection reset during open request handling")
-                    }
-                    ConnectionResult::Result(r) => r?,
-                };
-
-                if let Some(channel_id) = request.join_channel {
-                    cx.update(|cx| {
-                        workspace::join_channel(
-                            client::ChannelId(channel_id),
-                            app_state.clone(),
-                            None,
-                            cx,
-                        )
-                    })?
-                    .await?;
-                }
-
-                let workspace_window =
-                    workspace::get_any_active_workspace(app_state, cx.clone()).await?;
-                let workspace = workspace_window.entity(cx)?;
-
-                let mut promises = Vec::new();
-                for (channel_id, heading) in request.open_channel_notes {
-                    promises.push(cx.update_window(workspace_window.into(), |_, window, cx| {
-                        ChannelView::open(
-                            client::ChannelId(channel_id),
-                            heading,
-                            workspace.clone(),
-                            window,
-                            cx,
-                        )
-                        .log_err()
-                    })?)
-                }
-                future::join_all(promises).await;
-                anyhow::Ok(())
-            })
-            .await;
-            if let Err(err) = result {
-                fail_to_open_window_async(err, &mut cx);
-            }
-        })
-        .detach()
-    } else if let Some(task) = task {
-        cx.spawn(async move |mut cx| {
-            if let Err(err) = task.await {
-                fail_to_open_window_async(err, &mut cx);
-            }
-        })
-        .detach();
     }
 }
 
@@ -927,7 +860,7 @@ async fn restore_or_create_workspace(app_state: Arc<AppState>, cx: &mut AsyncApp
                                 cx,
                             )
                             .await
-                            .map_err(|e| anyhow::anyhow!(e)),
+                            .map_err(|e| e),
                             Err(e) => Err(anyhow::anyhow!(
                                 "Failed to get SSH connection options for {}: {}",
                                 ssh_host,
