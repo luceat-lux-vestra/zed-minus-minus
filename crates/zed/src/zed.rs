@@ -495,14 +495,6 @@ fn initialize_panels(
         let outline_panel = OutlinePanel::load(workspace_handle.clone(), cx.clone());
         let terminal_panel = TerminalPanel::load(workspace_handle.clone(), cx.clone());
         let git_panel = GitPanel::load(workspace_handle.clone(), cx.clone());
-        let channels_panel =
-            collab_ui::collab_panel::CollabPanel::load(workspace_handle.clone(), cx.clone());
-        let chat_panel =
-            collab_ui::chat_panel::ChatPanel::load(workspace_handle.clone(), cx.clone());
-        let notification_panel = collab_ui::notification_panel::NotificationPanel::load(
-            workspace_handle.clone(),
-            cx.clone(),
-        );
         let debug_panel = DebugPanel::load(workspace_handle.clone(), cx);
 
         let (
@@ -510,18 +502,12 @@ fn initialize_panels(
             outline_panel,
             terminal_panel,
             git_panel,
-            channels_panel,
-            chat_panel,
-            notification_panel,
             debug_panel,
         ) = futures::try_join!(
             project_panel,
             outline_panel,
             git_panel,
             terminal_panel,
-            channels_panel,
-            chat_panel,
-            notification_panel,
             debug_panel,
         )?;
 
@@ -530,9 +516,6 @@ fn initialize_panels(
             workspace.add_panel(outline_panel, window, cx);
             workspace.add_panel(terminal_panel, window, cx);
             workspace.add_panel(git_panel, window, cx);
-            workspace.add_panel(channels_panel, window, cx);
-            workspace.add_panel(chat_panel, window, cx);
-            workspace.add_panel(notification_panel, window, cx);
             workspace.add_panel(debug_panel, window, cx);
         })?;
 
@@ -805,32 +788,6 @@ fn register_actions(
              window: &mut Window,
              cx: &mut Context<Workspace>| {
                 workspace.toggle_panel_focus::<OutlinePanel>(window, cx);
-            },
-        )
-        .register_action(
-            |workspace: &mut Workspace,
-             _: &collab_ui::collab_panel::ToggleFocus,
-             window: &mut Window,
-             cx: &mut Context<Workspace>| {
-                workspace.toggle_panel_focus::<collab_ui::collab_panel::CollabPanel>(window, cx);
-            },
-        )
-        .register_action(
-            |workspace: &mut Workspace,
-             _: &collab_ui::chat_panel::ToggleFocus,
-             window: &mut Window,
-             cx: &mut Context<Workspace>| {
-                workspace.toggle_panel_focus::<collab_ui::chat_panel::ChatPanel>(window, cx);
-            },
-        )
-        .register_action(
-            |workspace: &mut Workspace,
-             _: &collab_ui::notification_panel::ToggleFocus,
-             window: &mut Window,
-             cx: &mut Context<Workspace>| {
-                workspace.toggle_panel_focus::<collab_ui::notification_panel::NotificationPanel>(
-                    window, cx,
-                );
             },
         )
         .register_action(
@@ -1304,7 +1261,7 @@ pub fn handle_keymap_file_changes(
                         }
                     }
                 }
-            };
+            }
             cx.update(|cx| {
                 if let Some(notifier) = MigrationNotification::try_global(cx) {
                     notifier.update(cx, |_, cx| {
@@ -1320,15 +1277,15 @@ pub fn handle_keymap_file_changes(
                         reload_keymaps(cx, key_bindings);
                         dismiss_app_notification(&notification_id.clone(), cx);
                     }
-                    KeymapFileLoadResult::SomeFailedToLoad {
-                        key_bindings,
-                        error_message,
-                    } => {
-                        if !key_bindings.is_empty() {
-                            reload_keymaps(cx, key_bindings);
-                        }
-                        show_keymap_file_load_error(notification_id.clone(), error_message, cx);
-                    }
+                    // KeymapFileLoadResult::SomeFailedToLoad {
+                    //     key_bindings,
+                    //     error_message,
+                    // } => {
+                    //     if !key_bindings.is_empty() {
+                    //         reload_keymaps(cx, key_bindings);
+                    //     }
+                    //     show_keymap_file_load_error(notification_id.clone(), error_message, cx);
+                    // }
                     KeymapFileLoadResult::JsonParseFailure { error } => {
                         show_keymap_file_json_error(notification_id.clone(), &error, cx)
                     }
@@ -4453,7 +4410,6 @@ mod tests {
             command_palette::init(cx);
             language::init(cx);
             editor::init(cx);
-            collab_ui::init(&app_state, cx);
             git_ui::init(cx);
             project_panel::init(cx);
             outline_panel::init(cx);
