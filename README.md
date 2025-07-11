@@ -1,3 +1,18 @@
+# Failed!
+
+https://github.com/johnthagen/min-sized-rust?tab=readme-ov-file
+
+I did the things(not all of them) explained on `min-sized-rust`,  
+but I can't reduce it under 100 MB on macOS(M1).  
+It slipped about to 100 MB, then tried another tool called `cargo bloat`,  
+
+> cargo bloat --release --crates
+
+then, I see it's hopeless.
+it's not possible to get satisfactory results by removing some unnecessary crates.
+ 
+---
+
 # Zed
 
 [![CI](https://github.com/zed-industries/zed/actions/workflows/ci.yml/badge.svg)](https://github.com/zed-industries/zed/actions/workflows/ci.yml)
